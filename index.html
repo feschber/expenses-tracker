@@ -304,6 +304,73 @@
                 color: var(--coral);
                 background: #fef2ee;
             }
+
+            /* Pending (unsynced) expense item */
+            .expense-item.pending {
+                opacity: 0.45;
+                pointer-events: none;
+            }
+            .expense-item.pending .expense-icon {
+                position: relative;
+            }
+            .spinner {
+                position: absolute;
+                inset: 0;
+                border-radius: var(--radius-md);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(247, 246, 243, 0.75);
+            }
+            .spinner::after {
+                content: "";
+                width: 14px;
+                height: 14px;
+                border: 2px solid var(--border-hover);
+                border-top-color: var(--text-secondary);
+                border-radius: 50%;
+                animation: spin 0.7s linear infinite;
+            }
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            /* Offline banner */
+            .offline-banner {
+                display: none;
+                align-items: center;
+                gap: 8px;
+                background: #fef2ee;
+                border: 0.5px solid #f0997b;
+                border-radius: var(--radius-md);
+                padding: 8px 12px;
+                font-size: 13px;
+                color: #993c1d;
+                margin-bottom: 10px;
+            }
+            .offline-banner.visible {
+                display: flex;
+            }
+            .offline-dot {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                background: var(--coral);
+                flex-shrink: 0;
+                animation: pulse 1.4s ease-in-out infinite;
+            }
+            @keyframes pulse {
+                0%,
+                100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.35;
+                }
+            }
+
             .empty {
                 text-align: center;
                 padding: 2.5rem;
@@ -450,6 +517,10 @@
 
             <!-- Expense list -->
             <div class="section-title">Expenses</div>
+            <div class="offline-banner" id="offline-banner">
+                <div class="offline-dot"></div>
+                Backend unreachable — changes saved locally only
+            </div>
             <div class="expense-list" id="expense-list">
                 <div class="empty" id="empty-state">
                     No expenses yet. Add one below.
@@ -550,6 +621,15 @@
                 },
             ];
 
+            let isOffline = false;
+
+            function setOffline(val) {
+                isOffline = val;
+                document
+                    .getElementById("offline-banner")
+                    .classList.toggle("visible", val);
+            }
+
             function fmt(n) {
                 return "€" + n.toFixed(2);
             }
@@ -622,9 +702,13 @@
                     const each = (exp.amount / 2).toFixed(2);
                     const badge = exp.paid_by === "Emma" ? "paid-e" : "paid-f";
                     const item = document.createElement("div");
-                    item.className = "expense-item";
+                    item.className =
+                        "expense-item" + (exp._pending ? " pending" : "");
                     item.innerHTML = `
-        <div class="expense-icon">${exp.category}</div>
+        <div class="expense-icon" style="position:relative">
+          ${exp.category}
+          ${exp._pending ? '<div class="spinner"></div>' : ""}
+        </div>
         <div class="expense-desc">
           <div class="name">${exp.description}</div>
           <div class="meta">
@@ -678,6 +762,11 @@
                 btn.textContent = "Saving…";
                 setStatus("");
 
+                // Optimistic add — show item immediately with spinner
+                const tempId = "_tmp_" + Date.now();
+                expenses.push({ id: tempId, _pending: true, ...payload });
+                render();
+
                 try {
                     const res = await fetch(API_ENDPOINT, {
                         method: "POST",
@@ -691,17 +780,22 @@
                     }
 
                     const saved = await res.json();
-                    expenses.push(saved);
+                    // Replace temp entry with confirmed server response
+                    const idx = expenses.findIndex((e) => e.id === tempId);
+                    if (idx !== -1) expenses[idx] = saved;
                     document.getElementById("desc").value = "";
                     document.getElementById("amount").value = "";
                     setStatus("Expense added.", "ok");
+                    setOffline(false);
                     render();
                 } catch (err) {
                     console.error("POST /api/expenses failed:", err);
-                    // Fallback: add locally so the UI still works without a backend
-                    expenses.push({ id: Date.now().toString(), ...payload });
+                    // Keep item but mark as unsynced (no spinner, greyed out permanently)
+                    const idx = expenses.findIndex((e) => e.id === tempId);
+                    if (idx !== -1) expenses[idx]._pending = false;
+                    setOffline(true);
+                    setStatus("Backend unreachable — saved locally.", "err");
                     render();
-                    setStatus("Saved locally (backend unreachable).", "err");
                 } finally {
                     btn.disabled = false;
                     btn.textContent = "Add expense";
