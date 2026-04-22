@@ -1,12 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"sync"
 	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 // ── Model ─────────────────────────────────────────────────────────────────────
@@ -20,41 +22,80 @@ type Expense struct {
 	Date        string  `json:"date"` // ISO 8601: "2024-04-22"
 }
 
-// ── In-memory store ───────────────────────────────────────────────────────────
+// ── Store ─────────────────────────────────────────────────────────────────────
 
 type Store struct {
-	mu       sync.RWMutex
-	expenses []Expense
-	nextID   int
+	db *sql.DB
 }
 
-func NewStore() *Store {
-	s := &Store{nextID: 1}
-	// Seed with sample data so the page looks populated on first load
-	s.expenses = []Expense{
-		{ID: "1", Description: "Dinner at Rosini", Amount: 64.00, PaidBy: "Emma", Category: "🍽️", Date: "2024-04-20"},
-		{ID: "2", Description: "Groceries", Amount: 38.50, PaidBy: "Ferdinand", Category: "🛒", Date: "2024-04-21"},
-		{ID: "3", Description: "Train tickets", Amount: 52.00, PaidBy: "Emma", Category: "🚗", Date: "2024-04-22"},
+func NewStore(path string) (*Store, error) {
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		return nil, fmt.Errorf("open db: %w", err)
 	}
-	s.nextID = 4
-	return s
+
+	// Single writer — avoids "database is locked" under concurrent requests.
+	db.SetMaxOpenConns(1)
+
+	if err := migrate(db); err != nil {
+		return nil, fmt.Errorf("migrate: %w", err)
+	}
+
+	return &Store{db: db}, nil
 }
 
-func (s *Store) List() []Expense {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	out := make([]Expense, len(s.expenses))
-	copy(out, s.expenses)
-	return out
+func migrate(db *sql.DB) error {
+	_, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS expenses (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			description TEXT    NOT NULL,
+			amount      REAL    NOT NULL,
+			paid_by     TEXT    NOT NULL,
+			category    TEXT    NOT NULL DEFAULT '',
+			date        TEXT    NOT NULL
+		);
+	`)
+	return err
 }
 
-func (s *Store) Add(e Expense) Expense {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	e.ID = fmt.Sprintf("%d", s.nextID)
-	s.nextID++
-	s.expenses = append(s.expenses, e)
-	return e
+func (s *Store) List() ([]Expense, error) {
+	rows, err := s.db.Query(
+		`SELECT id, description, amount, paid_by, category, date
+		 FROM expenses ORDER BY id ASC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var expenses []Expense
+	for rows.Next() {
+		var e Expense
+		if err := rows.Scan(&e.ID, &e.Description, &e.Amount, &e.PaidBy, &e.Category, &e.Date); err != nil {
+			return nil, err
+		}
+		expenses = append(expenses, e)
+	}
+	return expenses, rows.Err()
+}
+
+func (s *Store) Add(e Expense) (Expense, error) {
+	res, err := s.db.Exec(
+		`INSERT INTO expenses (description, amount, paid_by, category, date)
+		 VALUES (?, ?, ?, ?, ?)`,
+		e.Description, e.Amount, e.PaidBy, e.Category, e.Date,
+	)
+	if err != nil {
+		return Expense{}, err
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		return Expense{}, err
+	}
+
+	e.ID = fmt.Sprintf("%d", id)
+	return e, nil
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -64,10 +105,19 @@ func (s *Store) handleExpenses(w http.ResponseWriter, r *http.Request) {
 
 	// GET /api/expenses — return all expenses as JSON
 	case http.MethodGet:
-		expenses := s.List()
+		expenses, err := s.List()
+		if err != nil {
+			log.Printf("List error: %v", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		// Return an empty array instead of null when there are no expenses
+		if expenses == nil {
+			expenses = []Expense{}
+		}
 		writeJSON(w, http.StatusOK, expenses)
 
-	// POST /api/expenses — create a new expense
+	// POST /api/expenses — create and persist a new expense
 	case http.MethodPost:
 		var input Expense
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -91,7 +141,13 @@ func (s *Store) handleExpenses(w http.ResponseWriter, r *http.Request) {
 			input.Date = time.Now().Format("2006-01-02")
 		}
 
-		saved := s.Add(input)
+		saved, err := s.Add(input)
+		if err != nil {
+			log.Printf("Add error: %v", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
 		log.Printf("POST /api/expenses  id=%s  desc=%q  amount=%.2f  paid_by=%s",
 			saved.ID, saved.Description, saved.Amount, saved.PaidBy)
 		writeJSON(w, http.StatusCreated, saved)
@@ -123,21 +179,21 @@ func loggingMiddleware(next http.Handler) http.Handler {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 func main() {
-	store := NewStore()
+	store, err := NewStore("expenses.db")
+	if err != nil {
+		log.Fatalf("failed to open database: %v", err)
+	}
 
 	mux := http.NewServeMux()
-
-	// API routes
 	mux.HandleFunc("/api/expenses", store.handleExpenses)
 
-	// Serve static files (index.html, style.css, app.js) from ./static/
-	// Put your frontend files in a "static" subdirectory next to this binary.
 	fs := http.FileServer(http.Dir("./static"))
 	mux.Handle("/", fs)
 
 	addr := ":8080"
 	log.Printf("Listening on http://localhost%s", addr)
-	log.Printf("Serving static files from ./static/")
+	log.Printf("Database: expenses.db")
+	log.Printf("Static files: ./static/")
 
 	if err := http.ListenAndServe(addr, loggingMiddleware(mux)); err != nil {
 		log.Fatalf("server error: %v", err)
