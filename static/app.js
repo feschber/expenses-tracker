@@ -22,11 +22,7 @@
  */
 const API_ENDPOINT = '/api/expenses';
 
-let expenses = [
-  { id: '1', description: 'Dinner at Rosini', amount: 64,    paid_by: 'Emma',      category: '🍽️', date: '2024-04-20' },
-  { id: '2', description: 'Groceries',         amount: 38.50, paid_by: 'Ferdinand', category: '🛒', date: '2024-04-21' },
-  { id: '3', description: 'Train tickets',     amount: 52,    paid_by: 'Emma',      category: '🚗', date: '2024-04-22' },
-];
+let expenses = [];
 
 let isOffline = false;
 
@@ -109,8 +105,7 @@ function renderList() {
   }
   empty.style.display = 'none';
 
-  [...expenses].reverse().forEach((exp, revIdx) => {
-    const origIdx = expenses.length - 1 - revIdx;
+  [...expenses].reverse().forEach((exp) => {
     const each    = (exp.amount / 2).toFixed(2);
     const badge   = exp.paid_by === 'Emma' ? 'paid-e' : 'paid-f';
     const item    = document.createElement('div');
@@ -132,7 +127,7 @@ function renderList() {
         <div class="expense-total">${fmt(exp.amount)}</div>
         <div class="expense-split">€${each} each</div>
       </div>
-      <button class="remove-btn" onclick="removeExpense(${origIdx})" title="Remove">×</button>
+      <button class="remove-btn" onclick="removeExpense('${exp.id}')" title="Remove">×</button>
     `;
     list.appendChild(item);
   });
@@ -201,9 +196,36 @@ async function addExpense() {
   }
 }
 
-function removeExpense(idx) {
-  expenses.splice(idx, 1);
+async function loadExpenses() {
+  try {
+    const res = await fetch(API_ENDPOINT);
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
+    expenses = await res.json();
+    setOffline(false);
+  } catch (err) {
+    console.error('GET /api/expenses failed:', err);
+    setOffline(true);
+  }
   render();
+}
+
+async function removeExpense(id) {
+  // Optimistic remove
+  const prev = [...expenses];
+  expenses = expenses.filter(e => e.id !== id);
+  render();
+
+  try {
+    const res = await fetch(`${API_ENDPOINT}/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
+    setOffline(false);
+  } catch (err) {
+    console.error(`DELETE /api/expenses/${id} failed:`, err);
+    // Roll back
+    expenses = prev;
+    setOffline(true);
+    render();
+  }
 }
 
 function settle() {
@@ -213,4 +235,4 @@ function settle() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-render();
+loadExpenses();

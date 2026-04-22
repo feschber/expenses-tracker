@@ -79,6 +79,15 @@ func (s *Store) List() ([]Expense, error) {
 	return expenses, rows.Err()
 }
 
+func (s *Store) Delete(id string) (bool, error) {
+	res, err := s.db.Exec(`DELETE FROM expenses WHERE id = ?`, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
 func (s *Store) Add(e Expense) (Expense, error) {
 	res, err := s.db.Exec(
 		`INSERT INTO expenses (description, amount, paid_by, category, date)
@@ -157,6 +166,34 @@ func (s *Store) handleExpenses(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleExpense handles DELETE /api/expenses/{id}
+func (s *Store) handleExpense(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+
+	found, err := s.Delete(id)
+	if err != nil {
+		log.Printf("Delete error: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		http.Error(w, "expense not found", http.StatusNotFound)
+		return
+	}
+
+	log.Printf("DELETE /api/expenses/%s", id)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -186,6 +223,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/expenses", store.handleExpenses)
+	mux.HandleFunc("/api/expenses/{id}", store.handleExpense)
 
 	fs := http.FileServer(http.Dir("./static"))
 	mux.Handle("/", fs)
