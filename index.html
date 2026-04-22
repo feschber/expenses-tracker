@@ -1,818 +1,101 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Emma & Ferdinand — Shared Expenses</title>
-        <style>
-            *,
-            *::before,
-            *::after {
-                box-sizing: border-box;
-                margin: 0;
-                padding: 0;
-            }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Emma & Ferdinand — Shared Expenses</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app">
 
-            :root {
-                --bg: #f7f6f3;
-                --surface: #ffffff;
-                --border: rgba(0, 0, 0, 0.08);
-                --border-hover: rgba(0, 0, 0, 0.16);
-                --text-primary: #1a1a18;
-                --text-secondary: #6b6b66;
-                --text-muted: #9b9b95;
-                --purple-bg: #eeedfe;
-                --purple-text: #3c3489;
-                --teal-bg: #e1f5ee;
-                --teal-text: #085041;
-                --teal-mid: #1d9e75;
-                --coral: #d85a30;
-                --radius-md: 8px;
-                --radius-lg: 12px;
-            }
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1>Shared expenses</h1>
+      <div class="subtitle">Emma &amp; Ferdinand</div>
+    </div>
+    <div class="avatars">
+      <div class="avatar av-e">E</div>
+      <div class="avatar av-f">F</div>
+    </div>
+  </div>
 
-            body {
-                font-family:
-                    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                background: var(--bg);
-                color: var(--text-primary);
-                min-height: 100vh;
-                padding: 2rem 1rem;
-            }
-
-            .app {
-                max-width: 600px;
-                margin: 0 auto;
-            }
-
-            /* Header */
-            .header {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                margin-bottom: 1.5rem;
-            }
-            .header h1 {
-                font-size: 22px;
-                font-weight: 500;
-            }
-            .header .subtitle {
-                font-size: 13px;
-                color: var(--text-secondary);
-                margin-top: 2px;
-            }
-            .avatars {
-                display: flex;
-            }
-            .avatar {
-                width: 36px;
-                height: 36px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 13px;
-                font-weight: 500;
-                border: 2px solid var(--bg);
-            }
-            .av-e {
-                background: var(--purple-bg);
-                color: var(--purple-text);
-                margin-right: -8px;
-                z-index: 1;
-            }
-            .av-f {
-                background: var(--teal-bg);
-                color: var(--teal-text);
-            }
-
-            /* Balance card */
-            .balance-card {
-                background: var(--surface);
-                border: 0.5px solid var(--border);
-                border-radius: var(--radius-lg);
-                padding: 1.25rem;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                margin-bottom: 1rem;
-            }
-            .balance-people {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-            }
-            .balance-arrow {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                gap: 4px;
-            }
-            .arrow-track {
-                display: flex;
-                align-items: center;
-                gap: 6px;
-            }
-            .dot {
-                width: 8px;
-                height: 8px;
-                border-radius: 50%;
-            }
-            .dot-e {
-                background: #7f77dd;
-            }
-            .dot-f {
-                background: var(--teal-mid);
-            }
-            .track-line {
-                width: 48px;
-                height: 1px;
-                background: var(--border);
-                position: relative;
-            }
-            .track-line::after {
-                content: "";
-                position: absolute;
-                right: -1px;
-                top: -3px;
-                border-left: 6px solid rgba(0, 0, 0, 0.2);
-                border-top: 3.5px solid transparent;
-                border-bottom: 3.5px solid transparent;
-            }
-            .arrow-label {
-                font-size: 11px;
-                color: var(--text-muted);
-            }
-            .balance-amount {
-                font-size: 26px;
-                font-weight: 500;
-                text-align: right;
-            }
-            .balance-amount.settled {
-                color: var(--text-secondary);
-            }
-            .balance-amount.owes {
-                color: var(--coral);
-            }
-            .balance-amount.owed {
-                color: var(--teal-mid);
-            }
-            .balance-sublabel {
-                font-size: 12px;
-                color: var(--text-secondary);
-                text-align: right;
-                margin-top: 2px;
-            }
-            .settle-btn {
-                display: block;
-                margin-top: 8px;
-                margin-left: auto;
-                font-size: 12px;
-                padding: 4px 14px;
-                cursor: pointer;
-                background: none;
-                border: 0.5px solid #5dcaa5;
-                color: var(--teal-mid);
-                border-radius: 20px;
-            }
-            .settle-btn:hover {
-                background: var(--teal-bg);
-            }
-
-            /* Stats */
-            .stats {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 10px;
-                margin-bottom: 1.25rem;
-            }
-            .stat {
-                background: rgba(0, 0, 0, 0.03);
-                border-radius: var(--radius-md);
-                padding: 0.75rem 1rem;
-            }
-            .stat-label {
-                font-size: 12px;
-                color: var(--text-secondary);
-                margin-bottom: 4px;
-            }
-            .stat-val {
-                font-size: 20px;
-                font-weight: 500;
-            }
-
-            /* Section title */
-            .section-title {
-                font-size: 11px;
-                font-weight: 500;
-                text-transform: uppercase;
-                letter-spacing: 0.06em;
-                color: var(--text-muted);
-                margin-bottom: 8px;
-                margin-top: 1.25rem;
-            }
-
-            /* Expense list */
-            .expense-list {
-                display: flex;
-                flex-direction: column;
-                gap: 6px;
-            }
-            .expense-item {
-                background: var(--surface);
-                border: 0.5px solid var(--border);
-                border-radius: var(--radius-md);
-                padding: 0.75rem 1rem;
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                transition: border-color 0.15s;
-            }
-            .expense-item:hover {
-                border-color: var(--border-hover);
-            }
-            .expense-icon {
-                width: 34px;
-                height: 34px;
-                border-radius: var(--radius-md);
-                background: rgba(0, 0, 0, 0.04);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 16px;
-                flex-shrink: 0;
-            }
-            .expense-desc {
-                flex: 1;
-                min-width: 0;
-            }
-            .expense-desc .name {
-                font-size: 14px;
-                font-weight: 500;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-            }
-            .expense-desc .meta {
-                font-size: 12px;
-                color: var(--text-secondary);
-                margin-top: 2px;
-                display: flex;
-                align-items: center;
-                gap: 6px;
-            }
-            .paid-badge {
-                font-size: 11px;
-                padding: 2px 8px;
-                border-radius: 20px;
-            }
-            .paid-e {
-                background: var(--purple-bg);
-                color: var(--purple-text);
-            }
-            .paid-f {
-                background: var(--teal-bg);
-                color: var(--teal-text);
-            }
-            .expense-right {
-                text-align: right;
-                flex-shrink: 0;
-            }
-            .expense-total {
-                font-size: 14px;
-                font-weight: 500;
-            }
-            .expense-split {
-                font-size: 12px;
-                color: var(--text-secondary);
-                margin-top: 1px;
-            }
-            .remove-btn {
-                background: none;
-                border: none;
-                cursor: pointer;
-                color: var(--text-muted);
-                font-size: 18px;
-                line-height: 1;
-                padding: 4px 6px;
-                border-radius: 4px;
-                transition:
-                    color 0.1s,
-                    background 0.1s;
-            }
-            .remove-btn:hover {
-                color: var(--coral);
-                background: #fef2ee;
-            }
-
-            /* Pending (unsynced) expense item */
-            .expense-item.pending {
-                opacity: 0.45;
-                pointer-events: none;
-            }
-            .expense-item.pending .expense-icon {
-                position: relative;
-            }
-            .spinner {
-                position: absolute;
-                inset: 0;
-                border-radius: var(--radius-md);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background: rgba(247, 246, 243, 0.75);
-            }
-            .spinner::after {
-                content: "";
-                width: 14px;
-                height: 14px;
-                border: 2px solid var(--border-hover);
-                border-top-color: var(--text-secondary);
-                border-radius: 50%;
-                animation: spin 0.7s linear infinite;
-            }
-            @keyframes spin {
-                to {
-                    transform: rotate(360deg);
-                }
-            }
-
-            /* Offline banner */
-            .offline-banner {
-                display: none;
-                align-items: center;
-                gap: 8px;
-                background: #fef2ee;
-                border: 0.5px solid #f0997b;
-                border-radius: var(--radius-md);
-                padding: 8px 12px;
-                font-size: 13px;
-                color: #993c1d;
-                margin-bottom: 10px;
-            }
-            .offline-banner.visible {
-                display: flex;
-            }
-            .offline-dot {
-                width: 7px;
-                height: 7px;
-                border-radius: 50%;
-                background: var(--coral);
-                flex-shrink: 0;
-                animation: pulse 1.4s ease-in-out infinite;
-            }
-            @keyframes pulse {
-                0%,
-                100% {
-                    opacity: 1;
-                }
-                50% {
-                    opacity: 0.35;
-                }
-            }
-
-            .empty {
-                text-align: center;
-                padding: 2.5rem;
-                color: var(--text-muted);
-                font-size: 14px;
-            }
-
-            /* Add expense form */
-            .add-form {
-                background: var(--surface);
-                border: 0.5px solid var(--border);
-                border-radius: var(--radius-lg);
-                padding: 1.25rem;
-                margin-top: 0.5rem;
-            }
-            .form-row {
-                display: flex;
-                gap: 10px;
-                margin-bottom: 10px;
-                flex-wrap: wrap;
-            }
-            .form-row input,
-            .form-row select {
-                flex: 1;
-                min-width: 120px;
-                padding: 8px 12px;
-                font-size: 14px;
-                border: 0.5px solid var(--border);
-                border-radius: var(--radius-md);
-                background: var(--bg);
-                color: var(--text-primary);
-                outline: none;
-                transition: border-color 0.15s;
-            }
-            .form-row input:focus,
-            .form-row select:focus {
-                border-color: var(--border-hover);
-            }
-            .form-row input[type="number"] {
-                flex: 0 0 110px;
-            }
-            .add-btn {
-                width: 100%;
-                padding: 9px;
-                font-size: 14px;
-                cursor: pointer;
-                background: var(--text-primary);
-                color: #fff;
-                border: none;
-                border-radius: var(--radius-md);
-                transition: opacity 0.15s;
-            }
-            .add-btn:hover {
-                opacity: 0.85;
-            }
-            .add-btn:disabled {
-                opacity: 0.4;
-                cursor: not-allowed;
-            }
-            .status-msg {
-                font-size: 12px;
-                margin-top: 8px;
-                text-align: center;
-                min-height: 16px;
-            }
-            .status-msg.ok {
-                color: var(--teal-mid);
-            }
-            .status-msg.err {
-                color: var(--coral);
-            }
-        </style>
-    </head>
-    <body>
-        <div class="app">
-            <div class="header">
-                <div>
-                    <h1>Shared expenses</h1>
-                    <div class="subtitle">Emma &amp; Ferdinand</div>
-                </div>
-                <div class="avatars">
-                    <div class="avatar av-e">E</div>
-                    <div class="avatar av-f">F</div>
-                </div>
-            </div>
-
-            <!-- Balance -->
-            <div class="balance-card">
-                <div class="balance-people">
-                    <div
-                        class="avatar av-e"
-                        style="width: 30px; height: 30px; font-size: 12px"
-                    >
-                        E
-                    </div>
-                    <div class="balance-arrow">
-                        <div class="arrow-track">
-                            <div class="dot dot-e"></div>
-                            <div class="track-line"></div>
-                            <div class="dot dot-f"></div>
-                        </div>
-                        <div class="arrow-label" id="arrow-label">even</div>
-                    </div>
-                    <div
-                        class="avatar av-f"
-                        style="width: 30px; height: 30px; font-size: 12px"
-                    >
-                        F
-                    </div>
-                </div>
-                <div>
-                    <div class="balance-amount settled" id="balance-amount">
-                        €0.00
-                    </div>
-                    <div class="balance-sublabel" id="balance-label">
-                        all settled up
-                    </div>
-                    <button
-                        class="settle-btn"
-                        id="settle-btn"
-                        onclick="settle()"
-                        style="display: none"
-                    >
-                        Mark settled
-                    </button>
-                </div>
-            </div>
-
-            <!-- Stats -->
-            <div class="stats">
-                <div class="stat">
-                    <div class="stat-label">Total spent</div>
-                    <div class="stat-val" id="total-spent">€0</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">Emma paid</div>
-                    <div class="stat-val" id="emma-paid">€0</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">Ferdinand paid</div>
-                    <div class="stat-val" id="ferd-paid">€0</div>
-                </div>
-            </div>
-
-            <!-- Expense list -->
-            <div class="section-title">Expenses</div>
-            <div class="offline-banner" id="offline-banner">
-                <div class="offline-dot"></div>
-                Backend unreachable — changes saved locally only
-            </div>
-            <div class="expense-list" id="expense-list">
-                <div class="empty" id="empty-state">
-                    No expenses yet. Add one below.
-                </div>
-            </div>
-
-            <!-- Add expense form -->
-            <div class="section-title" style="margin-top: 1.5rem">
-                Add expense
-            </div>
-            <div class="add-form">
-                <div class="form-row">
-                    <input
-                        type="text"
-                        id="desc"
-                        placeholder="Description (e.g. Dinner)"
-                    />
-                    <input
-                        type="number"
-                        id="amount"
-                        placeholder="Amount €"
-                        min="0"
-                        step="0.01"
-                    />
-                </div>
-                <div class="form-row">
-                    <select id="paidby">
-                        <option value="Emma">Paid by Emma</option>
-                        <option value="Ferdinand">Paid by Ferdinand</option>
-                    </select>
-                    <select id="category">
-                        <option value="🍽️">Food &amp; drink</option>
-                        <option value="🏠">Housing</option>
-                        <option value="🚗">Transport</option>
-                        <option value="🛒">Groceries</option>
-                        <option value="🎬">Entertainment</option>
-                        <option value="💊">Health</option>
-                        <option value="✈️">Travel</option>
-                        <option value="📦">Other</option>
-                    </select>
-                </div>
-                <button class="add-btn" id="add-btn" onclick="addExpense()">
-                    Add expense
-                </button>
-                <div class="status-msg" id="status-msg"></div>
-            </div>
+  <!-- Balance card -->
+  <div class="balance-card">
+    <div class="balance-people">
+      <div class="avatar av-e" style="width:30px;height:30px;font-size:12px">E</div>
+      <div class="balance-arrow">
+        <div class="arrow-track">
+          <div class="dot dot-e"></div>
+          <div class="track-line"></div>
+          <div class="dot dot-f"></div>
         </div>
+        <div class="arrow-label" id="arrow-label">even</div>
+      </div>
+      <div class="avatar av-f" style="width:30px;height:30px;font-size:12px">F</div>
+    </div>
+    <div>
+      <div class="balance-amount settled" id="balance-amount">€0.00</div>
+      <div class="balance-sublabel" id="balance-label">all settled up</div>
+      <button class="settle-btn" id="settle-btn" onclick="settle()" style="display:none">Mark settled</button>
+    </div>
+  </div>
 
-        <script>
-            /**
-             * POST /api/expenses
-             *
-             * Request body (JSON):
-             * {
-             *   "description": "Dinner at Rosini",
-             *   "amount":      64.00,
-             *   "paid_by":     "Emma",           // "Emma" | "Ferdinand"
-             *   "category":    "🍽️",
-             *   "date":        "2024-04-22"       // ISO date string
-             * }
-             *
-             * Expected response (JSON):
-             * {
-             *   "id":          "abc123",
-             *   "description": "Dinner at Rosini",
-             *   "amount":      64.00,
-             *   "paid_by":     "Emma",
-             *   "category":    "🍽️",
-             *   "date":        "2024-04-22"
-             * }
-             */
-            const API_ENDPOINT = "/api/expenses";
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Total spent</div>
+      <div class="stat-val" id="total-spent">€0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Emma paid</div>
+      <div class="stat-val" id="emma-paid">€0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Ferdinand paid</div>
+      <div class="stat-val" id="ferd-paid">€0</div>
+    </div>
+  </div>
 
-            let expenses = [
-                {
-                    id: "1",
-                    description: "Dinner at Rosini",
-                    amount: 64,
-                    paid_by: "Emma",
-                    category: "🍽️",
-                    date: "2024-04-20",
-                },
-                {
-                    id: "2",
-                    description: "Groceries",
-                    amount: 38.5,
-                    paid_by: "Ferdinand",
-                    category: "🛒",
-                    date: "2024-04-21",
-                },
-                {
-                    id: "3",
-                    description: "Train tickets",
-                    amount: 52,
-                    paid_by: "Emma",
-                    category: "🚗",
-                    date: "2024-04-22",
-                },
-            ];
+  <!-- Expense list -->
+  <div class="section-title">Expenses</div>
+  <div class="offline-banner" id="offline-banner">
+    <div class="offline-dot"></div>
+    Backend unreachable — changes saved locally only
+  </div>
+  <div class="expense-list" id="expense-list">
+    <div class="empty" id="empty-state">No expenses yet. Add one below.</div>
+  </div>
 
-            let isOffline = false;
+  <!-- Add expense form -->
+  <div class="section-title" style="margin-top:1.5rem">Add expense</div>
+  <div class="add-form">
+    <div class="form-row">
+      <input type="text"   id="desc"   placeholder="Description (e.g. Dinner)" />
+      <input type="number" id="amount" placeholder="Amount €" min="0" step="0.01" />
+    </div>
+    <div class="form-row">
+      <select id="paidby">
+        <option value="Emma">Paid by Emma</option>
+        <option value="Ferdinand">Paid by Ferdinand</option>
+      </select>
+      <select id="category">
+        <option value="🍽️">Food &amp; drink</option>
+        <option value="🏠">Housing</option>
+        <option value="🚗">Transport</option>
+        <option value="🛒">Groceries</option>
+        <option value="🎬">Entertainment</option>
+        <option value="💊">Health</option>
+        <option value="✈️">Travel</option>
+        <option value="📦">Other</option>
+      </select>
+    </div>
+    <button class="add-btn" id="add-btn" onclick="addExpense()">Add expense</button>
+    <div class="status-msg" id="status-msg"></div>
+  </div>
 
-            function setOffline(val) {
-                isOffline = val;
-                document
-                    .getElementById("offline-banner")
-                    .classList.toggle("visible", val);
-            }
-
-            function fmt(n) {
-                return "€" + n.toFixed(2);
-            }
-            function fmtDate(iso) {
-                const d = new Date(iso + "T00:00:00");
-                return d.toLocaleDateString("en-GB", {
-                    month: "short",
-                    day: "numeric",
-                });
-            }
-
-            function render() {
-                let emmaPaid = 0,
-                    ferdPaid = 0;
-                expenses.forEach((e) => {
-                    if (e.paid_by === "Emma") emmaPaid += e.amount;
-                    else ferdPaid += e.amount;
-                });
-                const total = emmaPaid + ferdPaid;
-                const emmaOwes = total / 2 - emmaPaid;
-
-                document.getElementById("total-spent").textContent =
-                    "€" + Math.round(total);
-                document.getElementById("emma-paid").textContent =
-                    "€" + Math.round(emmaPaid);
-                document.getElementById("ferd-paid").textContent =
-                    "€" + Math.round(ferdPaid);
-
-                const balEl = document.getElementById("balance-amount");
-                const lblEl = document.getElementById("balance-label");
-                const arrowEl = document.getElementById("arrow-label");
-                const btn = document.getElementById("settle-btn");
-                const diff = Math.abs(emmaOwes);
-
-                if (diff < 0.01) {
-                    balEl.textContent = "€0.00";
-                    balEl.className = "balance-amount settled";
-                    lblEl.textContent = "all settled up";
-                    arrowEl.textContent = "even";
-                    btn.style.display = "none";
-                } else if (emmaOwes > 0) {
-                    balEl.textContent = fmt(diff);
-                    balEl.className = "balance-amount owes";
-                    lblEl.textContent = "Emma owes Ferdinand";
-                    arrowEl.textContent = "E → F";
-                    btn.style.display = "block";
-                } else {
-                    balEl.textContent = fmt(diff);
-                    balEl.className = "balance-amount owed";
-                    lblEl.textContent = "Ferdinand owes Emma";
-                    arrowEl.textContent = "F → E";
-                    btn.style.display = "block";
-                }
-
-                const list = document.getElementById("expense-list");
-                const empty = document.getElementById("empty-state");
-
-                list.querySelectorAll(".expense-item").forEach((el) =>
-                    el.remove(),
-                );
-
-                if (expenses.length === 0) {
-                    empty.style.display = "block";
-                    return;
-                }
-                empty.style.display = "none";
-
-                [...expenses].reverse().forEach((exp, revIdx) => {
-                    const origIdx = expenses.length - 1 - revIdx;
-                    const each = (exp.amount / 2).toFixed(2);
-                    const badge = exp.paid_by === "Emma" ? "paid-e" : "paid-f";
-                    const item = document.createElement("div");
-                    item.className =
-                        "expense-item" + (exp._pending ? " pending" : "");
-                    item.innerHTML = `
-        <div class="expense-icon" style="position:relative">
-          ${exp.category}
-          ${exp._pending ? '<div class="spinner"></div>' : ""}
-        </div>
-        <div class="expense-desc">
-          <div class="name">${exp.description}</div>
-          <div class="meta">
-            <span class="paid-badge ${badge}">${exp.paid_by}</span>
-            ${exp.date ? fmtDate(exp.date) : "Today"}
-          </div>
-        </div>
-        <div class="expense-right">
-          <div class="expense-total">${fmt(exp.amount)}</div>
-          <div class="expense-split">€${each} each</div>
-        </div>
-        <button class="remove-btn" onclick="removeExpense(${origIdx})" title="Remove">×</button>
-      `;
-                    list.appendChild(item);
-                });
-            }
-
-            function setStatus(msg, type) {
-                const el = document.getElementById("status-msg");
-                el.textContent = msg;
-                el.className = "status-msg " + (type || "");
-            }
-
-            async function addExpense() {
-                const desc = document.getElementById("desc").value.trim();
-                const amount = parseFloat(
-                    document.getElementById("amount").value,
-                );
-                const paid_by = document.getElementById("paidby").value;
-                const category = document.getElementById("category").value;
-
-                if (!desc || isNaN(amount) || amount <= 0) {
-                    setStatus(
-                        "Please fill in a description and a valid amount.",
-                        "err",
-                    );
-                    return;
-                }
-
-                const today = new Date().toISOString().slice(0, 10);
-                const payload = {
-                    description: desc,
-                    amount,
-                    paid_by,
-                    category,
-                    date: today,
-                };
-
-                const btn = document.getElementById("add-btn");
-                btn.disabled = true;
-                btn.textContent = "Saving…";
-                setStatus("");
-
-                // Optimistic add — show item immediately with spinner
-                const tempId = "_tmp_" + Date.now();
-                expenses.push({ id: tempId, _pending: true, ...payload });
-                render();
-
-                try {
-                    const res = await fetch(API_ENDPOINT, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(payload),
-                    });
-
-                    if (!res.ok) {
-                        const err = await res.text();
-                        throw new Error(err || `Server error ${res.status}`);
-                    }
-
-                    const saved = await res.json();
-                    // Replace temp entry with confirmed server response
-                    const idx = expenses.findIndex((e) => e.id === tempId);
-                    if (idx !== -1) expenses[idx] = saved;
-                    document.getElementById("desc").value = "";
-                    document.getElementById("amount").value = "";
-                    setStatus("Expense added.", "ok");
-                    setOffline(false);
-                    render();
-                } catch (err) {
-                    console.error("POST /api/expenses failed:", err);
-                    // Keep item but mark as unsynced (no spinner, greyed out permanently)
-                    const idx = expenses.findIndex((e) => e.id === tempId);
-                    if (idx !== -1) expenses[idx]._pending = false;
-                    setOffline(true);
-                    setStatus("Backend unreachable — saved locally.", "err");
-                    render();
-                } finally {
-                    btn.disabled = false;
-                    btn.textContent = "Add expense";
-                }
-            }
-
-            function removeExpense(idx) {
-                expenses.splice(idx, 1);
-                render();
-            }
-
-            function settle() {
-                expenses = [];
-                render();
-            }
-
-            render();
-        </script>
-    </body>
+</div>
+<script src="app.js"></script>
+</body>
 </html>
