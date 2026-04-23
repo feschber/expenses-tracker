@@ -36,7 +36,10 @@ let isOffline = false;
 // ── Boot: personalise the UI ──────────────────────────────────────────────────
 
 function personalise() {
-  if (!ACTIVE_USER) return; // shared view — leave defaults
+  if (!ACTIVE_USER) {
+    document.getElementById('add-expense-section').style.display = 'none';
+    return;
+  }
 
   document.title = `${ACTIVE_USER}'s expenses`;
   document.getElementById('page-title').textContent    = `Hi, ${ACTIVE_USER}`;

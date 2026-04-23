@@ -68,7 +68,8 @@
     <div class="empty" id="empty-state">No expenses yet. Add one below.</div>
   </div>
 
-  <!-- Add expense form -->
+  <!-- Add expense form — hidden on the shared view -->
+  <div id="add-expense-section">
   <div class="section-title" style="margin-top:1.5rem">Add expense</div>
   <div class="add-form">
     <div class="form-row">
@@ -90,6 +91,7 @@
     <button class="add-btn" id="add-btn" onclick="addExpense()">Add expense</button>
     <div class="status-msg" id="status-msg"></div>
   </div>
+  </div><!-- /add-expense-section -->
 
 </div>
 <script src="app.js"></script>
