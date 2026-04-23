@@ -148,6 +148,9 @@ func (s *Store) handleExpenses(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `paid_by must be "Emma" or "Ferdinand"`, http.StatusBadRequest)
 			return
 		}
+		if input.Category == "" {
+			input.Category = "📦"
+		}
 		if input.Date == "" {
 			input.Date = time.Now().Format("2006-01-02")
 		}

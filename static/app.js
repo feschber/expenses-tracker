@@ -75,6 +75,32 @@ function setOffline(val) {
   document.getElementById('offline-banner').classList.toggle('visible', val);
 }
 
+// ── Balance calculation ───────────────────────────────────────────────────────
+
+// Returns { emmaOwes, total, emmaExpenses, ferdExpenses }
+// emmaOwes > 0 means Emma owes Ferdinand; < 0 means Ferdinand owes Emma.
+function calcBalance() {
+  let emmaExpenses = 0, ferdExpenses = 0;
+  let emmaSettled = 0, ferdSettled = 0;
+  expenses.forEach(e => {
+    if (e.category === 'settlement') {
+      if (e.paid_by === 'Emma') emmaSettled += e.amount;
+      else                       ferdSettled  += e.amount;
+      return;
+    }
+    if (e.paid_by === 'Emma') emmaExpenses += e.amount;
+    else                       ferdExpenses += e.amount;
+  });
+  const total = emmaExpenses + ferdExpenses;
+
+  // Emma owes half of what Ferdinand spent, minus half of what she spent herself,
+  // minus cash she's already handed Ferdinand, plus cash Ferdinand has handed her
+  // (which increases her outstanding debt since she hasn't forwarded it yet).
+  const emmaOwes = ferdExpenses / 2 - emmaExpenses / 2 - emmaSettled + ferdSettled;
+
+  return { emmaOwes, total, emmaExpenses, ferdExpenses };
+}
+
 // ── Render ────────────────────────────────────────────────────────────────────
 
 function render() {
@@ -83,18 +109,12 @@ function render() {
 }
 
 function renderBalance() {
-  let emmaPaid = 0, ferdPaid = 0;
-  expenses.forEach(e => {
-    if (e.paid_by === 'Emma') emmaPaid += e.amount;
-    else ferdPaid += e.amount;
-  });
-  const total    = emmaPaid + ferdPaid;
-  const emmaOwes = total / 2 - emmaPaid;  // positive = Emma owes Ferdinand
-  const diff     = Math.abs(emmaOwes);
+  const { emmaOwes, total, emmaExpenses, ferdExpenses } = calcBalance();
+  const diff = Math.abs(emmaOwes);
 
   document.getElementById('total-spent').textContent = fmt(total);
-  document.getElementById('emma-paid').textContent   = fmt(emmaPaid);
-  document.getElementById('ferd-paid').textContent   = fmt(ferdPaid);
+  document.getElementById('emma-paid').textContent   = fmt(emmaExpenses);
+  document.getElementById('ferd-paid').textContent   = fmt(ferdExpenses);
 
   const balEl   = document.getElementById('balance-amount');
   const lblEl   = document.getElementById('balance-label');
@@ -147,29 +167,44 @@ function renderList() {
   empty.style.display = 'none';
 
   [...expenses].reverse().forEach((exp) => {
-    const each    = (exp.amount / 2).toFixed(2);
-    const badge   = exp.paid_by === 'Emma' ? 'paid-e' : 'paid-f';
-    const item    = document.createElement('div');
+    const item = document.createElement('div');
 
-    item.className = 'expense-item' + (exp._pending ? ' pending' : '');
-    item.innerHTML = `
-      <div class="expense-icon">
-        ${exp.category}
-        ${exp._pending ? '<div class="spinner"></div>' : ''}
-      </div>
-      <div class="expense-desc">
-        <div class="name">${exp.description}</div>
-        <div class="meta">
-          <span class="paid-badge ${badge}">${exp.paid_by}</span>
-          ${exp.date ? fmtDate(exp.date) : 'Today'}
+    if (exp.category === 'settlement') {
+      item.className = 'expense-item settlement-row' + (exp._pending ? ' pending' : '');
+      item.innerHTML = `
+        <div class="settlement-icon">✓</div>
+        <div class="expense-desc">
+          <div class="name">Settlement</div>
+          <div class="meta">${exp.paid_by} paid ${exp.paid_by === 'Emma' ? 'Ferdinand' : 'Emma'} &nbsp;${exp.date ? fmtDate(exp.date) : 'Today'}</div>
         </div>
-      </div>
-      <div class="expense-right">
-        <div class="expense-total">${fmt(exp.amount)}</div>
-        <div class="expense-split">€${each} each</div>
-      </div>
-      <button class="remove-btn" onclick="removeExpense('${exp.id}')" title="Remove">×</button>
-    `;
+        <div class="expense-right">
+          <div class="expense-total settlement-amount">${fmt(exp.amount)}</div>
+        </div>
+        <button class="remove-btn" onclick="removeExpense('${exp.id}')" title="Remove">×</button>
+      `;
+    } else {
+      const each  = (exp.amount / 2).toFixed(2);
+      const badge = exp.paid_by === 'Emma' ? 'paid-e' : 'paid-f';
+      item.className = 'expense-item' + (exp._pending ? ' pending' : '');
+      item.innerHTML = `
+        <div class="expense-icon">
+          ${exp.category}
+          ${exp._pending ? '<div class="spinner"></div>' : ''}
+        </div>
+        <div class="expense-desc">
+          <div class="name">${exp.description}</div>
+          <div class="meta">
+            <span class="paid-badge ${badge}">${exp.paid_by}</span>
+            ${exp.date ? fmtDate(exp.date) : 'Today'}
+          </div>
+        </div>
+        <div class="expense-right">
+          <div class="expense-total">${fmt(exp.amount)}</div>
+          <div class="expense-split">€${each} each</div>
+        </div>
+        <button class="remove-btn" onclick="removeExpense('${exp.id}')" title="Remove">×</button>
+      `;
+    }
     list.appendChild(item);
   });
 }
@@ -269,10 +304,42 @@ async function removeExpense(id) {
   }
 }
 
-function settle() {
-  expenses = [];
-  setOffline(false);
-  render();
+async function settle() {
+  const { emmaOwes } = calcBalance();
+
+  const amount  = parseFloat(Math.abs(emmaOwes).toFixed(2));
+  const paid_by = emmaOwes > 0 ? 'Emma' : 'Ferdinand'; // the debtor pays
+  const today   = new Date().toISOString().slice(0, 10);
+  const payload = {
+    description: 'Settlement',
+    amount,
+    paid_by,
+    category: 'settlement',
+    date: today,
+  };
+
+  const btn = document.getElementById('settle-btn');
+  btn.disabled    = true;
+  btn.textContent = 'Settling…';
+
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
+    const saved = await res.json();
+    expenses.push(saved);
+    setOffline(false);
+    render();
+  } catch (err) {
+    console.error('Settlement POST failed:', err);
+    setOffline(true);
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'Mark settled';
+  }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
