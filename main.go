@@ -1,12 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -196,48 +196,30 @@ func (s *Store) handleExpense(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handlePersonalView serves index.html with an injected <meta> tag identifying
-// the active user, so the JS can personalise the page without an extra request.
-func handlePersonalView(user string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "./static/index.html")
-	}
-}
+// ── Personal view handler ─────────────────────────────────────────────────────
 
-// injectUserMiddleware rewrites the served HTML to insert a <meta name="active-user"> tag.
-func injectUserMiddleware(user string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Only inject for HTML responses (i.e. the page itself, not assets)
-		if r.URL.Path != "/" && r.URL.Path != "/emma" && r.URL.Path != "/ferdinand" {
-			next.ServeHTTP(w, r)
+// servePersonalView reads index.html, injects the active-user meta tag, and
+// writes the result directly — avoiding http.ServeFile's redirect behaviour.
+func servePersonalView(user string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		html, err := os.ReadFile("./static/index.html")
+		if err != nil {
+			http.Error(w, "could not read index.html", http.StatusInternalServerError)
 			return
 		}
 
-		// Buffer the response so we can inject the meta tag
-		buf := &bytes.Buffer{}
-		rw  := &bufferedResponseWriter{buf: buf, header: w.Header()}
-		next.ServeHTTP(rw, r)
-
-		body := strings.Replace(
-			buf.String(),
+		patched := strings.Replace(
+			string(html),
 			`<meta charset="UTF-8" />`,
 			`<meta charset="UTF-8" />`+"\n  "+`<meta name="active-user" content="`+user+`" />`,
 			1,
 		)
-		w.WriteHeader(rw.status)
-		fmt.Fprint(w, body)
-	})
-}
 
-type bufferedResponseWriter struct {
-	buf    *bytes.Buffer
-	header http.Header
-	status int
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, patched)
+	}
 }
-
-func (b *bufferedResponseWriter) Header() http.Header        { return b.header }
-func (b *bufferedResponseWriter) WriteHeader(status int)     { b.status = status }
-func (b *bufferedResponseWriter) Write(p []byte) (int, error) { return b.buf.Write(p) }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -272,8 +254,8 @@ func main() {
 
 	// Personal views — inject the active user into the page
 	fs := http.FileServer(http.Dir("./static"))
-	mux.Handle("/emma",      injectUserMiddleware("Emma",      http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, "./static/index.html") })))
-	mux.Handle("/ferdinand", injectUserMiddleware("Ferdinand", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, "./static/index.html") })))
+	mux.HandleFunc("/emma",      servePersonalView("Emma"))
+	mux.HandleFunc("/ferdinand", servePersonalView("Ferdinand"))
 	mux.Handle("/", fs)
 
 	addr := ":8080"
