@@ -22,9 +22,35 @@
  */
 const API_ENDPOINT = '/api/expenses';
 
-let expenses = [];
+// activeUser is injected by the server into a <meta> tag.
+// Falls back to null on the shared /  view.
+const metaUser = document.querySelector('meta[name="active-user"]');
+const ACTIVE_USER = metaUser ? metaUser.content : null;  // "Emma" | "Ferdinand" | null
+const OTHER_USER  = ACTIVE_USER === 'Emma' ? 'Ferdinand'
+                  : ACTIVE_USER === 'Ferdinand' ? 'Emma'
+                  : null;
 
+let expenses  = [];
 let isOffline = false;
+
+// ── Boot: personalise the UI ──────────────────────────────────────────────────
+
+function personalise() {
+  if (!ACTIVE_USER) return; // shared view — leave defaults
+
+  document.title = `${ACTIVE_USER}'s expenses`;
+  document.getElementById('page-title').textContent    = `Hi, ${ACTIVE_USER}`;
+  document.getElementById('page-subtitle').textContent = `Shared with ${OTHER_USER}`;
+  document.getElementById('label-me').textContent      = 'You paid';
+  document.getElementById('label-other').textContent   = `${OTHER_USER} paid`;
+
+  // Highlight the active user's avatar
+  const meEl    = ACTIVE_USER === 'Emma'
+    ? document.getElementById('avatar-e')
+    : document.getElementById('avatar-f');
+  meEl.style.outline = '2px solid currentColor';
+  meEl.style.outlineOffset = '2px';
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -60,7 +86,7 @@ function renderBalance() {
     else ferdPaid += e.amount;
   });
   const total    = emmaPaid + ferdPaid;
-  const emmaOwes = total / 2 - emmaPaid;
+  const emmaOwes = total / 2 - emmaPaid;  // positive = Emma owes Ferdinand
   const diff     = Math.abs(emmaOwes);
 
   document.getElementById('total-spent').textContent = '€' + Math.round(total);
@@ -73,23 +99,35 @@ function renderBalance() {
   const btn     = document.getElementById('settle-btn');
 
   if (diff < 0.01) {
-    balEl.textContent     = '€0.00';
-    balEl.className       = 'balance-amount settled';
-    lblEl.textContent     = 'all settled up';
-    arrowEl.textContent   = 'even';
-    btn.style.display     = 'none';
-  } else if (emmaOwes > 0) {
-    balEl.textContent     = fmt(diff);
-    balEl.className       = 'balance-amount owes';
-    lblEl.textContent     = 'Emma owes Ferdinand';
-    arrowEl.textContent   = 'E → F';
-    btn.style.display     = 'block';
+    balEl.textContent   = '€0.00';
+    balEl.className     = 'balance-amount settled';
+    lblEl.textContent   = 'all settled up';
+    arrowEl.textContent = 'even';
+    btn.style.display   = 'none';
+    return;
+  }
+
+  btn.style.display = 'block';
+
+  // emmaOwes > 0  → Emma owes Ferdinand
+  // emmaOwes < 0  → Ferdinand owes Emma
+  if (ACTIVE_USER === 'Emma') {
+    balEl.textContent   = fmt(diff);
+    balEl.className     = emmaOwes > 0 ? 'balance-amount owes' : 'balance-amount owed';
+    lblEl.textContent   = emmaOwes > 0 ? `You owe ${OTHER_USER}` : `${OTHER_USER} owes you`;
+    arrowEl.textContent = emmaOwes > 0 ? 'you → F' : 'F → you';
+  } else if (ACTIVE_USER === 'Ferdinand') {
+    const ferdOwes = -emmaOwes; // flip perspective
+    balEl.textContent   = fmt(diff);
+    balEl.className     = ferdOwes > 0 ? 'balance-amount owes' : 'balance-amount owed';
+    lblEl.textContent   = ferdOwes > 0 ? `You owe ${OTHER_USER}` : `${OTHER_USER} owes you`;
+    arrowEl.textContent = ferdOwes > 0 ? 'you → E' : 'E → you';
   } else {
-    balEl.textContent     = fmt(diff);
-    balEl.className       = 'balance-amount owed';
-    lblEl.textContent     = 'Ferdinand owes Emma';
-    arrowEl.textContent   = 'F → E';
-    btn.style.display     = 'block';
+    // Shared view — generic labels
+    balEl.textContent   = fmt(diff);
+    balEl.className     = emmaOwes > 0 ? 'balance-amount owes' : 'balance-amount owed';
+    lblEl.textContent   = emmaOwes > 0 ? 'Emma owes Ferdinand' : 'Ferdinand owes Emma';
+    arrowEl.textContent = emmaOwes > 0 ? 'E → F' : 'F → E';
   }
 }
 
@@ -138,7 +176,7 @@ function renderList() {
 async function addExpense() {
   const desc     = document.getElementById('desc').value.trim();
   const amount   = parseFloat(document.getElementById('amount').value);
-  const paid_by  = document.getElementById('paidby').value;
+  const paid_by  = ACTIVE_USER || 'Emma'; // shared view falls back to Emma
   const category = document.getElementById('category').value;
 
   if (!desc || isNaN(amount) || amount <= 0) {
@@ -235,4 +273,5 @@ function settle() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+personalise();
 loadExpenses();

@@ -12,12 +12,12 @@
   <!-- Header -->
   <div class="header">
     <div>
-      <h1>Shared expenses</h1>
-      <div class="subtitle">Emma &amp; Ferdinand</div>
+      <h1 id="page-title">Shared expenses</h1>
+      <div class="subtitle" id="page-subtitle">Emma &amp; Ferdinand</div>
     </div>
     <div class="avatars">
-      <div class="avatar av-e">E</div>
-      <div class="avatar av-f">F</div>
+      <div class="avatar av-e" id="avatar-e">E</div>
+      <div class="avatar av-f" id="avatar-f">F</div>
     </div>
   </div>
 
@@ -49,11 +49,11 @@
       <div class="stat-val" id="total-spent">€0</div>
     </div>
     <div class="stat">
-      <div class="stat-label">Emma paid</div>
+      <div class="stat-label" id="label-me">Emma paid</div>
       <div class="stat-val" id="emma-paid">€0</div>
     </div>
     <div class="stat">
-      <div class="stat-label">Ferdinand paid</div>
+      <div class="stat-label" id="label-other">Ferdinand paid</div>
       <div class="stat-val" id="ferd-paid">€0</div>
     </div>
   </div>
@@ -76,10 +76,6 @@
       <input type="number" id="amount" placeholder="Amount €" min="0" step="0.01" />
     </div>
     <div class="form-row">
-      <select id="paidby">
-        <option value="Emma">Paid by Emma</option>
-        <option value="Ferdinand">Paid by Ferdinand</option>
-      </select>
       <select id="category">
         <option value="🍽️">Food &amp; drink</option>
         <option value="🏠">Housing</option>

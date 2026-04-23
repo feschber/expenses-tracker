@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -194,6 +196,49 @@ func (s *Store) handleExpense(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handlePersonalView serves index.html with an injected <meta> tag identifying
+// the active user, so the JS can personalise the page without an extra request.
+func handlePersonalView(user string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./static/index.html")
+	}
+}
+
+// injectUserMiddleware rewrites the served HTML to insert a <meta name="active-user"> tag.
+func injectUserMiddleware(user string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only inject for HTML responses (i.e. the page itself, not assets)
+		if r.URL.Path != "/" && r.URL.Path != "/emma" && r.URL.Path != "/ferdinand" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Buffer the response so we can inject the meta tag
+		buf := &bytes.Buffer{}
+		rw  := &bufferedResponseWriter{buf: buf, header: w.Header()}
+		next.ServeHTTP(rw, r)
+
+		body := strings.Replace(
+			buf.String(),
+			`<meta charset="UTF-8" />`,
+			`<meta charset="UTF-8" />`+"\n  "+`<meta name="active-user" content="`+user+`" />`,
+			1,
+		)
+		w.WriteHeader(rw.status)
+		fmt.Fprint(w, body)
+	})
+}
+
+type bufferedResponseWriter struct {
+	buf    *bytes.Buffer
+	header http.Header
+	status int
+}
+
+func (b *bufferedResponseWriter) Header() http.Header        { return b.header }
+func (b *bufferedResponseWriter) WriteHeader(status int)     { b.status = status }
+func (b *bufferedResponseWriter) Write(p []byte) (int, error) { return b.buf.Write(p) }
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -225,11 +270,17 @@ func main() {
 	mux.HandleFunc("/api/expenses", store.handleExpenses)
 	mux.HandleFunc("/api/expenses/{id}", store.handleExpense)
 
+	// Personal views — inject the active user into the page
 	fs := http.FileServer(http.Dir("./static"))
+	mux.Handle("/emma",      injectUserMiddleware("Emma",      http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, "./static/index.html") })))
+	mux.Handle("/ferdinand", injectUserMiddleware("Ferdinand", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, "./static/index.html") })))
 	mux.Handle("/", fs)
 
 	addr := ":8080"
 	log.Printf("Listening on http://localhost%s", addr)
+	log.Printf("  /          shared view")
+	log.Printf("  /emma      Emma's personal view")
+	log.Printf("  /ferdinand Ferdinand's personal view")
 	log.Printf("Database: expenses.db")
 	log.Printf("Static files: ./static/")
 
