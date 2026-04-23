@@ -174,8 +174,10 @@ function renderList() {
       item.innerHTML = `
         <div class="settlement-icon">✓</div>
         <div class="expense-desc">
-          <div class="name">Settlement</div>
-          <div class="meta">${exp.paid_by} paid ${exp.paid_by === 'Emma' ? 'Ferdinand' : 'Emma'} &nbsp;${exp.date ? fmtDate(exp.date) : 'Today'}</div>
+          <div class="name settlement-name">
+            Settlement
+            <span class="settlement-meta">${exp.paid_by} paid ${exp.paid_by === 'Emma' ? 'Ferdinand' : 'Emma'} &nbsp;${exp.date ? fmtDate(exp.date) : 'Today'}</span>
+          </div>
         </div>
         <div class="expense-right">
           <div class="expense-total settlement-amount">${fmt(exp.amount)}</div>
