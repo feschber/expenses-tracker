@@ -92,9 +92,9 @@ function renderBalance() {
   const emmaOwes = total / 2 - emmaPaid;  // positive = Emma owes Ferdinand
   const diff     = Math.abs(emmaOwes);
 
-  document.getElementById('total-spent').textContent = '€' + Math.round(total);
-  document.getElementById('emma-paid').textContent   = '€' + Math.round(emmaPaid);
-  document.getElementById('ferd-paid').textContent   = '€' + Math.round(ferdPaid);
+  document.getElementById('total-spent').textContent = fmt(total);
+  document.getElementById('emma-paid').textContent   = fmt(emmaPaid);
+  document.getElementById('ferd-paid').textContent   = fmt(ferdPaid);
 
   const balEl   = document.getElementById('balance-amount');
   const lblEl   = document.getElementById('balance-label');
