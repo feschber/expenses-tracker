@@ -174,6 +174,33 @@ body {
 }
 .remove-btn:hover { color: var(--coral); background: #fef2ee; }
 
+.confirm-delete {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.confirm-delete .confirm-yes {
+  font-size: 12px;
+  padding: 3px 10px;
+  cursor: pointer;
+  background: var(--coral);
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+}
+.confirm-delete .confirm-no {
+  font-size: 12px;
+  padding: 3px 10px;
+  cursor: pointer;
+  background: none;
+  color: var(--text-secondary);
+  border: 0.5px solid var(--border-hover);
+  border-radius: 20px;
+}
+.confirm-delete .confirm-no:hover  { background: rgba(0,0,0,0.04); }
+.confirm-delete .confirm-yes:hover { opacity: 0.85; }
+
 /* ── Settlement row ── */
 .settlement-row {
   background: #eaf3de;

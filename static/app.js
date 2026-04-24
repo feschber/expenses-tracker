@@ -23,15 +23,16 @@
 const API_ENDPOINT = '/api/expenses';
 
 // activeUser is injected by the server into a <meta> tag.
-// Falls back to null on the shared /  view.
-const metaUser = document.querySelector('meta[name="active-user"]');
-const ACTIVE_USER = metaUser ? metaUser.content : null;  // "Emma" | "Ferdinand" | null
-const OTHER_USER  = ACTIVE_USER === 'Emma' ? 'Ferdinand'
+// Falls back to null on the shared / view.
+const metaUser    = document.querySelector('meta[name="active-user"]');
+const ACTIVE_USER = metaUser ? metaUser.content : null; // "Emma" | "Ferdinand" | null
+const OTHER_USER  = ACTIVE_USER === 'Emma'      ? 'Ferdinand'
                   : ACTIVE_USER === 'Ferdinand' ? 'Emma'
                   : null;
 
-let expenses  = [];
-let isOffline = false;
+let expenses     = [];
+let isOffline    = false;
+let confirmingId = null; // tracks which item is showing the confirm prompt
 
 // ── Boot: personalise the UI ──────────────────────────────────────────────────
 
@@ -47,15 +48,14 @@ function personalise() {
   document.getElementById('label-me').textContent      = 'You paid';
   document.getElementById('label-other').textContent   = `${OTHER_USER} paid`;
 
-  // Highlight the active user's avatar
-  const meEl    = ACTIVE_USER === 'Emma'
+  const meEl = ACTIVE_USER === 'Emma'
     ? document.getElementById('avatar-e')
     : document.getElementById('avatar-f');
-  meEl.style.outline = '2px solid currentColor';
+  meEl.style.outline       = '2px solid currentColor';
   meEl.style.outlineOffset = '2px';
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmt(n) { return '€' + n.toFixed(2); }
 
@@ -75,14 +75,28 @@ function setOffline(val) {
   document.getElementById('offline-banner').classList.toggle('visible', val);
 }
 
+function removeBtn(id) {
+  if (confirmingId === id) {
+    return `<div class="confirm-delete">
+      <button class="confirm-no"  onclick="cancelDelete()">Cancel</button>
+      <button class="confirm-yes" onclick="removeExpense('${id}')">Delete</button>
+    </div>`;
+  }
+  return `<button class="remove-btn" onclick="confirmDelete('${id}')" title="Remove">×</button>`;
+}
+
 // ── Balance calculation ───────────────────────────────────────────────────────
 
 // Returns { emmaOwes, total, emmaExpenses, ferdExpenses }
-// emmaOwes > 0 means Emma owes Ferdinand; < 0 means Ferdinand owes Emma.
+// emmaOwes > 0 → Emma owes Ferdinand
+// emmaOwes < 0 → Ferdinand owes Emma
 function calcBalance() {
   let emmaExpenses = 0, ferdExpenses = 0;
-  let emmaSettled = 0, ferdSettled = 0;
+  let emmaSettled  = 0, ferdSettled  = 0;
+
   expenses.forEach(e => {
+    if (e._pending || e._failed) return; // exclude unconfirmed items from balance
+
     if (e.category === 'settlement') {
       if (e.paid_by === 'Emma') emmaSettled += e.amount;
       else                       ferdSettled  += e.amount;
@@ -91,11 +105,8 @@ function calcBalance() {
     if (e.paid_by === 'Emma') emmaExpenses += e.amount;
     else                       ferdExpenses += e.amount;
   });
-  const total = emmaExpenses + ferdExpenses;
 
-  // Emma owes half of what Ferdinand spent, minus half of what she spent herself,
-  // minus cash she's already handed Ferdinand, plus cash Ferdinand has handed her
-  // (which increases her outstanding debt since she hasn't forwarded it yet).
+  const total    = emmaExpenses + ferdExpenses;
   const emmaOwes = ferdExpenses / 2 - emmaExpenses / 2 - emmaSettled + ferdSettled;
 
   return { emmaOwes, total, emmaExpenses, ferdExpenses };
@@ -132,21 +143,18 @@ function renderBalance() {
 
   btn.style.display = 'block';
 
-  // emmaOwes > 0  → Emma owes Ferdinand
-  // emmaOwes < 0  → Ferdinand owes Emma
   if (ACTIVE_USER === 'Emma') {
     balEl.textContent   = fmt(diff);
     balEl.className     = emmaOwes > 0 ? 'balance-amount owes' : 'balance-amount owed';
     lblEl.textContent   = emmaOwes > 0 ? `You owe ${OTHER_USER}` : `${OTHER_USER} owes you`;
     arrowEl.textContent = emmaOwes > 0 ? 'you → F' : 'F → you';
   } else if (ACTIVE_USER === 'Ferdinand') {
-    const ferdOwes = -emmaOwes; // flip perspective
+    const ferdOwes = -emmaOwes;
     balEl.textContent   = fmt(diff);
     balEl.className     = ferdOwes > 0 ? 'balance-amount owes' : 'balance-amount owed';
     lblEl.textContent   = ferdOwes > 0 ? `You owe ${OTHER_USER}` : `${OTHER_USER} owes you`;
     arrowEl.textContent = ferdOwes > 0 ? 'you → E' : 'E → you';
   } else {
-    // Shared view — generic labels
     balEl.textContent   = fmt(diff);
     balEl.className     = emmaOwes > 0 ? 'balance-amount owes' : 'balance-amount owed';
     lblEl.textContent   = emmaOwes > 0 ? 'Emma owes Ferdinand' : 'Ferdinand owes Emma';
@@ -167,31 +175,37 @@ function renderList() {
   empty.style.display = 'none';
 
   [...expenses].reverse().forEach((exp) => {
-    const item = document.createElement('div');
+    const item       = document.createElement('div');
+    const isPending  = !!exp._pending;
+    const isFailed   = !!exp._failed;
+    const stateClass = isPending ? ' pending' : isFailed ? ' failed' : '';
 
     if (exp.category === 'settlement') {
-      item.className = 'expense-item settlement-row' + (exp._pending ? ' pending' : '');
+      item.className = 'expense-item settlement-row' + stateClass;
       item.innerHTML = `
-        <div class="settlement-icon">✓</div>
+        <div class="settlement-icon">
+          ${isPending ? '<div class="spinner-sm"></div>' : '✓'}
+        </div>
         <div class="expense-desc">
           <div class="name settlement-name">
             Settlement
-            <span class="settlement-meta">${exp.paid_by} paid ${exp.paid_by === 'Emma' ? 'Ferdinand' : 'Emma'} &nbsp;${exp.date ? fmtDate(exp.date) : 'Today'}</span>
+            <span class="settlement-meta">${exp.paid_by} paid ${exp.paid_by === 'Emma' ? 'Ferdinand' : 'Emma'}&nbsp;&nbsp;${exp.date ? fmtDate(exp.date) : 'Today'}</span>
           </div>
         </div>
         <div class="expense-right">
           <div class="expense-total settlement-amount">${fmt(exp.amount)}</div>
         </div>
-        <button class="remove-btn" onclick="removeExpense('${exp.id}')" title="Remove">×</button>
+        ${isFailed  ? `<button class="retry-btn" onclick="retryExpense('${exp._tempId}')" title="Retry">↺</button>`
+        : isPending ? ''
+        :              removeBtn(exp.id)}
       `;
     } else {
       const each  = (exp.amount / 2).toFixed(2);
       const badge = exp.paid_by === 'Emma' ? 'paid-e' : 'paid-f';
-      item.className = 'expense-item' + (exp._pending ? ' pending' : '');
+      item.className = 'expense-item' + stateClass;
       item.innerHTML = `
         <div class="expense-icon">
-          ${exp.category}
-          ${exp._pending ? '<div class="spinner"></div>' : ''}
+          ${isPending ? '<div class="spinner"></div>' : exp.category}
         </div>
         <div class="expense-desc">
           <div class="name">${exp.description}</div>
@@ -204,11 +218,42 @@ function renderList() {
           <div class="expense-total">${fmt(exp.amount)}</div>
           <div class="expense-split">€${each} each</div>
         </div>
-        <button class="remove-btn" onclick="removeExpense('${exp.id}')" title="Remove">×</button>
+        ${isFailed  ? `<button class="retry-btn" onclick="retryExpense('${exp._tempId}')" title="Retry">↺</button>`
+        : isPending ? ''
+        :              removeBtn(exp.id)}
       `;
     }
     list.appendChild(item);
   });
+}
+
+// ── API calls ─────────────────────────────────────────────────────────────────
+
+async function postExpense(payload, tempId) {
+  const idx = expenses.findIndex(e => e._tempId === tempId);
+
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
+
+    const saved = await res.json();
+    if (idx !== -1) expenses[idx] = saved;
+    setOffline(false);
+
+  } catch (err) {
+    console.error('POST /api/expenses failed:', err);
+    if (idx !== -1) {
+      expenses[idx]._pending = false;
+      expenses[idx]._failed  = true;
+    }
+    setOffline(true);
+  }
+
+  render();
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -216,7 +261,7 @@ function renderList() {
 async function addExpense() {
   const desc     = document.getElementById('desc').value.trim();
   const amount   = parseFloat(document.getElementById('amount').value);
-  const paid_by  = ACTIVE_USER || 'Emma'; // shared view falls back to Emma
+  const paid_by  = ACTIVE_USER || 'Emma';
   const category = document.getElementById('category').value;
 
   if (!desc || isNaN(amount) || amount <= 0) {
@@ -232,46 +277,37 @@ async function addExpense() {
   btn.textContent = 'Saving…';
   setStatus('');
 
-  // Optimistic add — show item immediately with spinner
+  // Optimistic add — show immediately as pending (greyed out + spinner)
   const tempId = '_tmp_' + Date.now();
-  expenses.push({ id: tempId, _pending: true, ...payload });
+  expenses.push({ id: tempId, _tempId: tempId, _pending: true, ...payload });
   render();
 
-  try {
-    const res = await fetch(API_ENDPOINT, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
-    });
+  await postExpense(payload, tempId);
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(errText || `Server error ${res.status}`);
-    }
+  setStatus(isOffline ? 'Could not reach server — will retry.' : 'Expense added.', isOffline ? 'err' : 'ok');
+  document.getElementById('desc').value   = '';
+  document.getElementById('amount').value = '';
+  btn.disabled    = false;
+  btn.textContent = 'Add expense';
+}
 
-    const saved = await res.json();
-    const idx   = expenses.findIndex(e => e.id === tempId);
-    if (idx !== -1) expenses[idx] = saved;
+async function retryExpense(tempId) {
+  const exp = expenses.find(e => e._tempId === tempId);
+  if (!exp) return;
 
-    document.getElementById('desc').value   = '';
-    document.getElementById('amount').value = '';
-    setStatus('Expense added.', 'ok');
-    setOffline(false);
-    render();
+  const payload = {
+    description: exp.description,
+    amount:      exp.amount,
+    paid_by:     exp.paid_by,
+    category:    exp.category,
+    date:        exp.date,
+  };
 
-  } catch (err) {
-    console.error('POST /api/expenses failed:', err);
-    // Keep item but strip spinner — greyed out = unsynced
-    const idx = expenses.findIndex(e => e.id === tempId);
-    if (idx !== -1) expenses[idx]._pending = false;
-    setOffline(true);
-    setStatus('Backend unreachable — saved locally.', 'err');
-    render();
+  exp._pending = true;
+  exp._failed  = false;
+  render();
 
-  } finally {
-    btn.disabled    = false;
-    btn.textContent = 'Add expense';
-  }
+  await postExpense(payload, tempId);
 }
 
 async function loadExpenses() {
@@ -287,8 +323,18 @@ async function loadExpenses() {
   render();
 }
 
+function confirmDelete(id) {
+  confirmingId = id;
+  render();
+}
+
+function cancelDelete() {
+  confirmingId = null;
+  render();
+}
+
 async function removeExpense(id) {
-  // Optimistic remove
+  confirmingId = null;
   const prev = [...expenses];
   expenses = expenses.filter(e => e.id !== id);
   render();
@@ -299,7 +345,6 @@ async function removeExpense(id) {
     setOffline(false);
   } catch (err) {
     console.error(`DELETE /api/expenses/${id} failed:`, err);
-    // Roll back
     expenses = prev;
     setOffline(true);
     render();
@@ -310,38 +355,22 @@ async function settle() {
   const { emmaOwes } = calcBalance();
 
   const amount  = parseFloat(Math.abs(emmaOwes).toFixed(2));
-  const paid_by = emmaOwes > 0 ? 'Emma' : 'Ferdinand'; // the debtor pays
+  const paid_by = emmaOwes > 0 ? 'Emma' : 'Ferdinand';
   const today   = new Date().toISOString().slice(0, 10);
-  const payload = {
-    description: 'Settlement',
-    amount,
-    paid_by,
-    category: 'settlement',
-    date: today,
-  };
+  const payload = { description: 'Settlement', amount, paid_by, category: 'settlement', date: today };
 
   const btn = document.getElementById('settle-btn');
   btn.disabled    = true;
   btn.textContent = 'Settling…';
 
-  try {
-    const res = await fetch(API_ENDPOINT, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error(`Server error ${res.status}`);
-    const saved = await res.json();
-    expenses.push(saved);
-    setOffline(false);
-    render();
-  } catch (err) {
-    console.error('Settlement POST failed:', err);
-    setOffline(true);
-  } finally {
-    btn.disabled    = false;
-    btn.textContent = 'Mark settled';
-  }
+  const tempId = '_tmp_' + Date.now();
+  expenses.push({ id: tempId, _tempId: tempId, _pending: true, ...payload });
+  render();
+
+  await postExpense(payload, tempId);
+
+  btn.disabled    = false;
+  btn.textContent = 'Mark settled';
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
