@@ -11,4 +11,4 @@ DATE="$(date +%Y-%m-%d_%H-%M-%S)"
 
 mkdir -p "$BACKUP_DIR"
 
-cp "$DB_FILE" "$BACKUP_DIR/expenses_${DATE}.db"
+sqlite3 "$DB_FILE" ".backup $BACKUP_DIR/expenses_${DATE}.db"
