@@ -124,8 +124,13 @@ function renderBalance() {
   const diff = Math.abs(emmaOwes);
 
   document.getElementById('total-spent').textContent = fmt(total);
-  document.getElementById('emma-paid').textContent   = fmt(emmaExpenses);
-  document.getElementById('ferd-paid').textContent   = fmt(ferdExpenses);
+
+  // "me" = the active user, "other" = the counterpart.
+  // On the shared view ACTIVE_USER is null so we fall back to Emma/Ferdinand labels.
+  const mePaid    = ACTIVE_USER === 'Ferdinand' ? ferdExpenses : emmaExpenses;
+  const otherPaid = ACTIVE_USER === 'Ferdinand' ? emmaExpenses : ferdExpenses;
+  document.getElementById('me-paid').textContent    = fmt(mePaid);
+  document.getElementById('other-paid').textContent = fmt(otherPaid);
 
   const balEl   = document.getElementById('balance-amount');
   const lblEl   = document.getElementById('balance-label');
